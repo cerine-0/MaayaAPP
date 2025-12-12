@@ -1,21 +1,21 @@
 import React from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, TouchableOpacity } from 'react-native';
 
-export default function SplashScreen() {
+export default function SplashScreen({ onContinue }) {
   return (
-    <View style={styles.container}>
+    <TouchableOpacity style={styles.container} onPress={onContinue}>
       <Image
-        source={require('../assets/rectangle.png')}
+        source={require('../assets/Rectangle.png')}
         style={styles.image}
       />
-    </View>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#87CEFA', // screen color
+    backgroundColor: '#87CEFA',
     justifyContent: 'center',
     alignItems: 'center',
   },
