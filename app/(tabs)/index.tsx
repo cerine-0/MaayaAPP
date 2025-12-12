@@ -8,12 +8,13 @@ import SplashScreen3 from '@/screens/SplashScreen3';
 import SplashScreen4 from '@/screens/SplashScreen4';
 import SplashScreen5 from '@/screens/SplashScreen5';
 
+
 export default function App() {
   const [current, setCurrent] = useState('SplashScreen');
 
   return (
     <View style={{ flex: 1 }}>
-      
+
       {current === 'SplashScreen' && (
         <SplashScreen onContinue={() => setCurrent('SplashScreen2')} />
       )}
@@ -48,10 +49,10 @@ export default function App() {
           onContinue={() => setCurrent('gettingstarted')}   // FIXED
         />
       )}
-      
-        {current === 'gettingstarted' && (
-          <GettingStarted onContinue={() => setCurrent('HomeScreen')} />
-        )}
+
+      {current === 'gettingstarted' && (
+        <GettingStarted onContinue={() => setCurrent('HomeScreen')} />
+      )}
 
 
 
