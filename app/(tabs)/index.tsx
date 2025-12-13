@@ -6,6 +6,7 @@ import { SignUpScreen } from '@/screens/Signup';
 import { UserTypeChoice } from '@/screens/UserTypeChoice';
 import React, { useState } from 'react';
 import { View } from 'react-native';
+import { supabase } from '@/lib/supabase';
 
 import ChatScreen from '@/screens/ChatScreen';
 import ContactChatScreen from '@/screens/Chatbycontact';
