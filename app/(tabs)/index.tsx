@@ -1,15 +1,27 @@
 import React, { useState } from 'react';
 import { View } from 'react-native';
 
-import GettingStarted from '@/screens/GettingStarted'; // <-- IMPORT IT
+import AgendaScreen from '@/screens/AgendaScreen'; // ADD THIS IMPORT
+import GettingStarted from '@/screens/GettingStarted';
+import HomeScreen from '@/screens/HomeScreen'; // ADD THIS IMPORT
 import SplashScreen from '@/screens/SplashScreen';
 import SplashScreen2 from '@/screens/SplashScreen2';
 import SplashScreen3 from '@/screens/SplashScreen3';
 import SplashScreen4 from '@/screens/SplashScreen4';
 import SplashScreen5 from '@/screens/SplashScreen5';
 
+// Your user ID from Supabase
+const USER_ID = "17847301-5fdf-4499-8bdb-774a98c37ea0";
+
 export default function App() {
   const [current, setCurrent] = useState('SplashScreen');
+  const [homeRefreshKey, setHomeRefreshKey] = useState(0);
+
+  // Fonction pour revenir à HomeScreen et rafraîchir les données
+  const returnToHome = () => {
+    setHomeRefreshKey(prev => prev + 1); // Incrémenter pour forcer le refresh
+    setCurrent('HomeScreen');
+  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -45,15 +57,31 @@ export default function App() {
         <SplashScreen5
           onBack={() => setCurrent('SplashScreen4')}
           getstarted={() => setCurrent('gettingstarted')}
-          onContinue={() => setCurrent('gettingstarted')}   // FIXED
+          onContinue={() => setCurrent('gettingstarted')}
         />
       )}
       
-        {current === 'gettingstarted' && (
-          <GettingStarted onContinue={() => setCurrent('HomeScreen')} />
-        )}
+      {current === 'gettingstarted' && (
+        <GettingStarted onContinue={() => setCurrent('HomeScreen')} />
+      )}
 
+      {/* ADD THIS BLOCK - This was missing! */}
+      {current === 'HomeScreen' && (
+        <HomeScreen 
+          userId={USER_ID}
+          onNavigateToAgenda={() => setCurrent('AgendaScreen')}
+          onNavigateToEmergency={() => setCurrent('EmergencyCallScreen')} // Ajoutez cette ligne
+          key={homeRefreshKey}
+        />
+      )}
 
+      {/* ADD THIS BLOCK - For Agenda navigation */}
+      {current === 'AgendaScreen' && (
+        <AgendaScreen 
+          USER_ID={USER_ID}
+          onBack={returnToHome}
+        />
+      )}
 
     </View>
   );
