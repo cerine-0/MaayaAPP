@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { supabase } from '../supabase';
+import { supabase } from '../lib/supabase';
 
 const USER_ID = '17847301-5fdf-4499-8bdb-774a98c37ea0';
 
@@ -18,7 +18,7 @@ export default function RequestScreen({ onBack }) {
   const [description, setDescription] = useState('');
   const [showRequestDropdown, setShowRequestDropdown] = useState(false);
   const [showUrgencyDropdown, setShowUrgencyDropdown] = useState(false);
-  
+
 
   const requestTypes = [
     'Consultation médicale',
@@ -36,38 +36,38 @@ export default function RequestScreen({ onBack }) {
     'Pas urgent'
   ];
 
-const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-const handleSend = async () => {
-  if (!requestType || !urgency || !description) {
-    alert('Veuillez remplir tous les champs');
-    return;
-  }
-
-  setLoading(true);
-
-  const { error } = await supabase.from('requests').insert([
-    {
-      user_id: USER_ID,
-      type: requestType,
-      urgency,
-      description,
-      status: 'en attente',
+  const handleSend = async () => {
+    if (!requestType || !urgency || !description) {
+      alert('Veuillez remplir tous les champs');
+      return;
     }
-  ]);
 
-  setLoading(false);
+    setLoading(true);
 
-  if (error) {
-    console.log(error);
-    alert('Erreur lors de l’envoi');
-  } else {
-    alert('Demande envoyée');
-    setRequestType('');
-    setUrgency('');
-    setDescription('');
-  }
-};
+    const { error } = await supabase.from('requests').insert([
+      {
+        user_id: USER_ID,
+        type: requestType,
+        urgency,
+        description,
+        status: 'en attente',
+      }
+    ]);
+
+    setLoading(false);
+
+    if (error) {
+      console.log(error);
+      alert('Erreur lors de l’envoi');
+    } else {
+      alert('Demande envoyée');
+      setRequestType('');
+      setUrgency('');
+      setDescription('');
+    }
+  };
 
 
   return (
@@ -87,7 +87,7 @@ const handleSend = async () => {
         <Text style={styles.label}>
           Veuillez s'il vous plaît rentrer le type de la demande:
         </Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.dropdown}
           onPress={() => setShowRequestDropdown(!showRequestDropdown)}
         >
@@ -116,7 +116,7 @@ const handleSend = async () => {
 
         {/* Urgency Dropdown */}
         <Text style={styles.label}>Urgence:</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.dropdown}
           onPress={() => setShowUrgencyDropdown(!showUrgencyDropdown)}
         >
@@ -156,13 +156,13 @@ const handleSend = async () => {
             numberOfLines={10}
             textAlignVertical="top"
           />
-          
+
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
             <TouchableOpacity style={styles.micButton}>
               <Text style={styles.micIcon}>🎤</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.sendButton} onPress={handleSend}  disabled={loading}>
+            <TouchableOpacity style={styles.sendButton} onPress={handleSend} disabled={loading}>
               <Text style={styles.sendIcon}>➤</Text>
             </TouchableOpacity>
           </View>

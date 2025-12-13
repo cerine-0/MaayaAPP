@@ -9,7 +9,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { supabase } from '../supabase';
+import { supabase } from "../lib/supabase"
 
 export default function ContactChatScreen({ contact, onBack }) {
     if (!contact) return <Text>Loading...</Text>; // safety check

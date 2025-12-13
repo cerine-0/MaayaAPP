@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { supabase } from '../supabase';
+import { supabase } from '../lib/supabase';
 
 export default function ProfileScreen({ onMedicalInfo }) {
   // const [name, setName] = useState('John Doe');
@@ -17,15 +17,15 @@ export default function ProfileScreen({ onMedicalInfo }) {
   // const [birthDate, setBirthDate] = useState('');
 
   const [userData, setUserData] = useState({
-  nom_prenom: '',
-  numero_telephone: '',
-  email: '',
-  date_naissance: '',
-});
+    nom_prenom: '',
+    numero_telephone: '',
+    email: '',
+    date_naissance: '',
+  });
 
   const USER_ID = '17847301-5fdf-4499-8bdb-774a98c37ea0';
 
-    useEffect(() => {
+  useEffect(() => {
     const fetchUser = async () => {
       const { data, error } = await supabase
         .from('users')
@@ -41,7 +41,7 @@ export default function ProfileScreen({ onMedicalInfo }) {
     };
     fetchUser();
   }, []);
-   
+
   return (
     <ScrollView style={styles.container}>
       {/* Header */}
@@ -51,16 +51,16 @@ export default function ProfileScreen({ onMedicalInfo }) {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Profile</Text>
 
-          <TouchableOpacity style={styles.notificationButton}>
-        <View style={styles.notificationIcon}>
-          <Image
-            source={require('../assets/Notif.png')}
-            style={{ width: 28, height: 28 }} 
-            resizeMode="contain"
-          />
-          <View style={styles.notificationDot} />
-        </View>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.notificationButton}>
+          <View style={styles.notificationIcon}>
+            <Image
+              source={require('../assets/Notif.png')}
+              style={{ width: 28, height: 28 }}
+              resizeMode="contain"
+            />
+            <View style={styles.notificationDot} />
+          </View>
+        </TouchableOpacity>
       </View>
 
       {/* Profile Picture */}
@@ -78,44 +78,44 @@ export default function ProfileScreen({ onMedicalInfo }) {
 
       {/* Form Fields */}
       <View style={styles.formSection}>
-          <Text style={styles.label}>Nom Et Prenom</Text>
+        <Text style={styles.label}>Nom Et Prenom</Text>
         <TextInput
-  style={styles.input}
-  value={userData.nom_prenom}
-  onChangeText={(text) => setUserData({ ...userData, nom_prenom: text })}
-/>
+          style={styles.input}
+          value={userData.nom_prenom}
+          onChangeText={(text) => setUserData({ ...userData, nom_prenom: text })}
+        />
 
-<Text style={styles.label}>Numero De Téléphone</Text>
-<TextInput
-  style={styles.input}
-  value={userData.numero_telephone}
-  onChangeText={(text) => setUserData({ ...userData, numero_telephone: text })}
-/>
+        <Text style={styles.label}>Numero De Téléphone</Text>
+        <TextInput
+          style={styles.input}
+          value={userData.numero_telephone}
+          onChangeText={(text) => setUserData({ ...userData, numero_telephone: text })}
+        />
 
 
- <Text style={styles.label}>Email</Text>
-<TextInput
-  style={styles.input}
-  value={userData.email}
-  onChangeText={(text) => setUserData({ ...userData, email: text })}
-/>
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          value={userData.email}
+          onChangeText={(text) => setUserData({ ...userData, email: text })}
+        />
 
- <Text style={styles.label}>Date De Naissance</Text>
-<TextInput
-  style={styles.input}
-  value={userData.date_naissance}
-  onChangeText={(text) => setUserData({ ...userData, date_naissance: text })}
-/>
+        <Text style={styles.label}>Date De Naissance</Text>
+        <TextInput
+          style={styles.input}
+          value={userData.date_naissance}
+          onChangeText={(text) => setUserData({ ...userData, date_naissance: text })}
+        />
       </View>
 
 
       {/* Medical Information Button */}
-      <TouchableOpacity 
-  style={styles.medicalButton}
-  onPress={onMedicalInfo} >
-  <Text style={styles.medicalButtonText}>Informations Medicales</Text>
-  <Text style={styles.arrowIcon}>→</Text>
-    </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.medicalButton}
+        onPress={onMedicalInfo} >
+        <Text style={styles.medicalButtonText}>Informations Medicales</Text>
+        <Text style={styles.arrowIcon}>→</Text>
+      </TouchableOpacity>
 
     </ScrollView>
   );

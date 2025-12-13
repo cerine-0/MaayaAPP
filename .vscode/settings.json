@@ -3,5 +3,40 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+
+  "cSpell.language": "en,fr",
+
+ "cSpell.enabledFileTypes": [
+    "js",
+    "jsx",
+    "ts",
+    "tsx"
+  ],
+
+  "cSpell.words": [
+    "supabase",
+    "SUPABASE",
+    "apikey",
+    "anon",
+    "utilise",
+    "valeurs",
+    "temporaires",
+    "remplaceras",
+    "tard",
+    "avec",
+    "vraies",
+    "cles",
+    "clés",
+    "temporaire",
+    "signin",
+    "signup",
+    "Chatbycontact",
+    "getstarted",
+    "gettingstarted"
+  ],
+
+  "cSpell.ignoreRegExpList": [
+    "/eyJ[a-zA-Z0-9-_]+\\.[a-zA-Z0-9-_]+\\.[a-zA-Z0-9-_]+/"
+  ]
 }

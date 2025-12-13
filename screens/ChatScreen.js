@@ -8,7 +8,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { supabase } from '../supabase';
+import { supabase } from '../lib/supabase';
 import { useNavigation } from '@react-navigation/native';
 
 export default function ChatScreen({ onOpenChat }) {
