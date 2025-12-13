@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { View } from 'react-native';
 
-import GettingStarted from '@/screens/GettingStarted'; // <-- IMPORT IT
+import ChatScreen from '@/screens/ChatScreen';
+import Chatbycontact from '@/screens/Chatbycontact';
+import GettingStarted from '@/screens/GettingStarted';
+import ProfileUser1 from '@/screens/ProfileUser1';
+import ProfileUser2 from '@/screens/ProfileUser2';
 import SplashScreen from '@/screens/SplashScreen';
 import SplashScreen2 from '@/screens/SplashScreen2';
 import SplashScreen3 from '@/screens/SplashScreen3';
@@ -9,7 +13,9 @@ import SplashScreen4 from '@/screens/SplashScreen4';
 import SplashScreen5 from '@/screens/SplashScreen5';
 
 export default function App() {
-  const [current, setCurrent] = useState('SplashScreen');
+  const [selectedContact, setSelectedContact] = useState(null);
+  //const [current, setCurrent] = useState('SplashScreen');
+  const [current, setCurrent] = useState('ChatScreen');
 
   return (
     <View style={{ flex: 1 }}>
@@ -49,10 +55,39 @@ export default function App() {
         />
       )}
       
-        {current === 'gettingstarted' && (
-          <GettingStarted onContinue={() => setCurrent('HomeScreen')} />
-        )}
+    
+           {current === 'gettingstarted' && (
+        <GettingStarted onContinue={() => setCurrent('ProfileUser1')} />
+      )}
 
+
+          {current === 'ProfileUser1' && (
+        <ProfileUser1 
+          onMedicalInfo={() => setCurrent('ProfileUser2')} 
+        />
+      )}
+
+      {current === 'ProfileUser2' && (
+        <ProfileUser2 
+          onBack={() => setCurrent('ProfileUser1')} 
+        />
+      )}
+
+     {current === 'ChatScreen' && (
+  <ChatScreen 
+    onOpenChat={(contact) => {
+      setSelectedContact(contact); // store the selected contact
+      setCurrent('Chatbycontact'); // go to the chat detail page
+    }} 
+  />
+     )}
+
+{current === 'Chatbycontact' && selectedContact && (
+  <Chatbycontact
+    contact={selectedContact} // pass the contact object
+    onBack={() => setCurrent('ChatScreen')} // back button
+  />
+)}
 
 
     </View>
