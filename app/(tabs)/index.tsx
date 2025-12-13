@@ -1,6 +1,9 @@
+
+
+
 import React, { useState } from 'react';
 import { View } from 'react-native';
-
+import NextScreen from '@/screens/NextScreen';
 import AgendaScreen from '@/screens/AgendaScreen'; // ADD THIS IMPORT
 import GettingStarted from '@/screens/GettingStarted';
 import HomeScreen from '@/screens/HomeScreen'; // ADD THIS IMPORT
@@ -16,6 +19,12 @@ const USER_ID = "17847301-5fdf-4499-8bdb-774a98c37ea0";
 export default function App() {
   const [current, setCurrent] = useState('SplashScreen');
   const [homeRefreshKey, setHomeRefreshKey] = useState(0);
+  const goToHome = () => setCurrentScreen('home');
+  const goToNext = () => setCurrentScreen('next');
+  const goToSignIn = () => setCurrentScreen('signin');
+  const goToSignUp = () => setCurrentScreen('signup');
+  const goToProfile = () => setCurrentScreen('profileSetup1');
+  const goToAgenda = () => setCurrentScreen('agenda');
 
   // Fonction pour revenir à HomeScreen et rafraîchir les données
   const returnToHome = () => {
@@ -78,11 +87,14 @@ export default function App() {
       {/* ADD THIS BLOCK - For Agenda navigation */}
       {current === 'AgendaScreen' && (
         <AgendaScreen 
-          USER_ID={USER_ID}
-          onBack={returnToHome}
+          userId={USER_ID}
         />
       )}
 
     </View>
   );
 }
+function setCurrentScreen(arg0: string) {
+  throw new Error('Function not implemented.');
+}
+
