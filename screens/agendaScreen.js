@@ -1,469 +1,545 @@
-import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
-    Dimensions,
     Modal,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View
-} from "react-native";
-import {
-    addTask,
-    deleteTask,
-    getAgendaDates,
-    getTasksForDate,
-    updateTask
-} from "../agendaQueries";
+    View,
+} from 'react-native';
+import { supabase } from '../supabase';
 
-const { width } = Dimensions.get('window');
-
-// ========== BOTTOM NAVIGATION ==========
-function AgendaBottomNav({ onBack }) {
-  return (
-    <View style={navStyles.container}>
-      <View style={navStyles.background} />
-      <View style={navStyles.tabsContainer}>
-        <TouchableOpacity style={navStyles.tabButton} onPress={onBack}>
-          <Ionicons name="home" size={26} color="rgba(255,255,255,0.6)" />
-        </TouchableOpacity>
-        <TouchableOpacity style={navStyles.tabButton}>
-          <Ionicons name="person" size={26} color="rgba(255,255,255,0.6)" />
-        </TouchableOpacity>
-        <TouchableOpacity style={navStyles.tabButton}>
-          <Ionicons name="notifications" size={26} color="rgba(255,255,255,0.6)" />
-        </TouchableOpacity>
-        <TouchableOpacity style={navStyles.tabButton}>
-          <Ionicons name="call" size={26} color="rgba(255,255,255,0.6)" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
-export default function AgendaScreen({ USER_ID, onBack }) {
+export default function AgendaScreen({ userId }) {
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [tasks, setTasks] = useState([]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingTask, setEditingTask] = useState(null);
-  const [newTaskTime, setNewTaskTime] = useState("");
-  const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [datesWithTasks, setDatesWithTasks] = useState([]);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
+  const [selectedTime, setSelectedTime] = useState('09:00');
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskDescription, setTaskDescription] = useState('');
+  const [taskType, setTaskType] = useState('task'); // 'medication', 'appointment', 'task'
+  const [reminders, setReminders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [editModal, setEditModal] = useState({
+    visible: false,
+    reminder: null,
+  });
 
-  // 🔍 DEBUG: Vérifier USER_ID au démarrage
-  useEffect(() => {
-    console.log('🚀 AgendaScreen démarré');
-    console.log('👤 USER_ID reçu:', USER_ID);
-    console.log('📅 Date sélectionnée:', selectedDate.toISOString().split('T')[0]);
+  const timeSlots = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
+  
+  const taskTypes = [
+    { value: 'medication', label: '💊 Médicament', icon: '💊' },
+    { value: 'appointment', label: '🏥 Rendez-vous', icon: '🏥' },
+    { value: 'task', label: '✓ Tâche', icon: '✓' },
+  ];
+
+  // Générer le calendrier du mois
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startDayOfWeek = firstDay.getDay();
+    const adjustedStart = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
+
+    const days = [];
+    for (let i = 0; i < adjustedStart; i++) {
+      days.push(null);
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(i);
+    }
+    return days;
+  };
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  // Charger les rappels pour la date sélectionnée
+  const fetchReminders = async () => {
+    if (!userId) return;
     
-    if (!USER_ID) {
-      Alert.alert('Erreur', 'USER_ID manquant! Impossible de charger les tâches.');
+    setLoading(true);
+    const dateString = selectedDate.toISOString().split('T')[0];
+    
+    const { data, error } = await supabase
+      .from('reminders')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('date', dateString)
+      .order('time', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching reminders:', error);
+      Alert.alert('Erreur', 'Impossible de charger les rappels');
+    } else {
+      setReminders(data || []);
     }
-  }, []);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    console.log('🔄 useEffect déclenché - Chargement des données...');
-    loadTasksForDate();
-    loadDatesWithTasks();
-  }, [selectedDate, selectedMonth, selectedYear, USER_ID]);
+    fetchReminders();
+  }, [selectedDate, userId]);
 
-  async function loadDatesWithTasks() {
-    try {
-      console.log("Chargement des dates avec tâches pour USER_ID:", USER_ID);
-      const dates = await getAgendaDates(USER_ID);
-      console.log("Dates avec tâches:", dates);
-      setDatesWithTasks(dates);
-    } catch (error) {
-      console.error("Erreur chargement dates:", error);
-      setDatesWithTasks([]);
-    }
-  }
-
-  async function loadTasksForDate() {
-    try {
-      const dateStr = selectedDate.toISOString().split('T')[0];
-      console.log("Chargement tâches pour date:", dateStr);
-      const t = await getTasksForDate(USER_ID, dateStr);
-      console.log("Tâches chargées:", t);
-      setTasks(t);
-      setSelectedTimeSlot(null);
-    } catch (error) {
-      console.error("Erreur chargement tâches:", error);
-      setTasks([]);
-    }
-  }
-
-  // Générer les heures à partir des tâches existantes
-  function getAvailableTimeSlots() {
-    const slots = new Set();
-    tasks.forEach(task => {
-      if (task.time) {
-        slots.add(task.time);
-      }
-    });
-    return Array.from(slots).sort();
-  }
-
-  function openAddModal(preselectedTime = "") {
-    setEditingTask(null);
-    setNewTaskTime(preselectedTime || selectedTimeSlot || "");
-    setNewTaskTitle("");
-    setModalVisible(true);
-  }
-
-  function openEditModal(task) {
-    setEditingTask(task);
-    setNewTaskTime(task.time);
-    setNewTaskTitle(task.title);
-    setModalVisible(true);
-  }
-
-  async function saveTask() {
-    if (!newTaskTime || !newTaskTitle) {
-      Alert.alert("Erreur", "Veuillez remplir tous les champs");
+  // Ajouter un rappel
+  const addReminder = async () => {
+    if (!taskTitle.trim()) {
+      Alert.alert('Attention', 'Veuillez entrer un titre pour la tâche');
       return;
     }
 
-    const dateStr = selectedDate.toISOString().split('T')[0];
-    console.log("Sauvegarde tâche - Date:", dateStr, "Time:", newTaskTime, "Title:", newTaskTitle);
+    setLoading(true);
+    const dateString = selectedDate.toISOString().split('T')[0];
 
-    try {
-      if (editingTask) {
-        console.log("Modification tâche ID:", editingTask.id);
-        const updated = await updateTask(editingTask.id, {
-          time: newTaskTime,
-          title: newTaskTitle
-        });
-        
-        if (updated) {
-          console.log("Tâche modifiée avec succès");
-          Alert.alert("Succès", "Tâche modifiée avec succès");
-        } else {
-          Alert.alert("Erreur", "Impossible de modifier la tâche");
-          return;
-        }
-      } else {
-        console.log("Ajout nouvelle tâche");
-        const added = await addTask(USER_ID, dateStr, newTaskTime, newTaskTitle);
-        
-        if (added) {
-          console.log("Tâche ajoutée avec succès:", added);
-          Alert.alert("Succès", "Tâche ajoutée avec succès");
-        } else {
-          Alert.alert("Erreur", "Impossible d'ajouter la tâche");
-          return;
-        }
-      }
+    const { error } = await supabase
+      .from('reminders')
+      .insert([{
+        user_id: userId,
+        date: dateString,
+        time: selectedTime + ':00', // Format time as HH:MM:SS
+        type: taskType,
+        title: taskTitle,
+        description: taskDescription || taskTitle,
+        completed: false,
+      }]);
 
-      // Recharger les données
-      await loadTasksForDate();
-      await loadDatesWithTasks();
-      setModalVisible(false);
-      
-    } catch (error) {
-      console.error('Erreur lors de la sauvegarde:', error);
-      Alert.alert("Erreur", "Une erreur est survenue: " + error.message);
+    if (error) {
+      console.error('Insert error:', error);
+      Alert.alert('Erreur', error.message);
+    } else {
+      setTaskTitle('');
+      setTaskDescription('');
+      setTaskType('task');
+      Alert.alert('Succès', 'Tâche ajoutée !');
+      fetchReminders();
     }
-  }
+    setLoading(false);
+  };
 
-  async function confirmDelete(taskId) {
-    Alert.alert(
-      "Confirmation",
-      "Voulez-vous vraiment supprimer cette tâche ?",
-      [
-        { text: "Annuler", style: "cancel" },
-        {
-          text: "Supprimer",
-          style: "destructive",
-          onPress: async () => {
-            console.log("Suppression tâche ID:", taskId);
-            const deleted = await deleteTask(taskId);
-            if (deleted) {
-              console.log("Tâche supprimée avec succès");
-              Alert.alert("Succès", "Tâche supprimée avec succès");
-              await loadTasksForDate();
-              await loadDatesWithTasks();
-            } else {
-              Alert.alert("Erreur", "Impossible de supprimer la tâche");
-            }
-          }
-        }
-      ]
-    );
-  }
+  // Modifier un rappel
+  const updateReminder = async () => {
+    if (!editModal.reminder) return;
 
-  // Générer le calendrier
-  const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-  const firstDayOfMonth = new Date(selectedYear, selectedMonth, 1).getDay();
-  const adjustedFirstDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; // Lundi = 0
-  const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+    const timeString = editModal.reminder.time.includes(':') 
+      ? editModal.reminder.time 
+      : editModal.reminder.time + ':00';
 
-  const days = [];
-  for (let i = 0; i < adjustedFirstDay; i++) {
-    days.push(null);
-  }
-  for (let i = 1; i <= daysInMonth; i++) {
-    days.push(i);
-  }
+    const { error } = await supabase
+      .from('reminders')
+      .update({
+        title: editModal.reminder.title,
+        description: editModal.reminder.description,
+        time: timeString,
+        type: editModal.reminder.type,
+      })
+      .eq('id', editModal.reminder.id);
 
-  const handleDateSelect = (day) => {
-    if (day) {
-      const newDate = new Date(selectedYear, selectedMonth, day);
-      console.log('Date sélectionnée:', newDate.toISOString().split('T')[0]);
-      setSelectedDate(newDate);
+    if (error) {
+      Alert.alert('Erreur', error.message);
+    } else {
+      setEditModal({ visible: false, reminder: null });
+      Alert.alert('Succès', 'Tâche modifiée !');
+      fetchReminders();
     }
   };
 
-  const timeSlots = getAvailableTimeSlots();
+  // Supprimer un rappel
+  const deleteReminder = async (id) => {
+    Alert.alert(
+      'Confirmation',
+      'Voulez-vous vraiment supprimer cette tâche ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase
+              .from('reminders')
+              .delete()
+              .eq('id', id);
+
+            if (error) {
+              Alert.alert('Erreur', error.message);
+            } else {
+              fetchReminders();
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Marquer comme complété
+  const toggleCompleted = async (id, currentStatus) => {
+    const { error } = await supabase
+      .from('reminders')
+      .update({ completed: !currentStatus })
+      .eq('id', id);
+
+    if (error) {
+      Alert.alert('Erreur', error.message);
+    } else {
+      fetchReminders();
+    }
+  };
+
+  // Navigation mois
+  const changeMonth = (direction) => {
+    const newDate = new Date(selectedDate);
+    newDate.setMonth(selectedDate.getMonth() + direction);
+    setSelectedDate(newDate);
+  };
+
+  const days = getDaysInMonth(selectedDate);
+  const weekDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  const getTypeIcon = (type) => {
+    const typeObj = taskTypes.find(t => t.value === type);
+    return typeObj ? typeObj.icon : '✓';
+  };
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack}>
-          <Ionicons name="chevron-back" size={24} color="#FF7B6D" />
+        <TouchableOpacity style={styles.backButton}>
+          <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Agenda</Text>
-        <TouchableOpacity style={styles.notificationBell}>
-          <Ionicons name="notifications" size={24} color="#FF7B6D" />
-          <View style={styles.notificationDot} />
-        </TouchableOpacity>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>👤</Text>
+        </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Calendar */}
-        <View style={styles.calendarCard}>
-          <View style={styles.calendarHeader}>
-            <TouchableOpacity onPress={() => {
-              if (selectedMonth === 0) {
-                setSelectedMonth(11);
-                setSelectedYear(selectedYear - 1);
-              } else {
-                setSelectedMonth(selectedMonth - 1);
-              }
-            }}>
-              <Ionicons name="chevron-back" size={20} color="#666" />
+        {/* Calendrier */}
+        <View style={styles.calendar}>
+          <View style={styles.monthNav}>
+            <TouchableOpacity onPress={() => changeMonth(-1)}>
+              <Text style={styles.navButton}>‹</Text>
             </TouchableOpacity>
-
-            <Text style={styles.calendarMonth}>{monthNames[selectedMonth]}</Text>
-
-            <TouchableOpacity onPress={() => {
-              if (selectedMonth === 11) {
-                setSelectedMonth(0);
-                setSelectedYear(selectedYear + 1);
-              } else {
-                setSelectedMonth(selectedMonth + 1);
-              }
-            }}>
-              <Ionicons name="chevron-forward" size={20} color="#666" />
+            <Text style={styles.monthText}>{monthNames[selectedDate.getMonth()]}</Text>
+            <TouchableOpacity onPress={() => changeMonth(1)}>
+              <Text style={styles.navButton}>›</Text>
             </TouchableOpacity>
-
-            <Text style={styles.calendarYear}>{selectedYear}</Text>
-
-            <TouchableOpacity>
-              <Ionicons name="chevron-down" size={20} color="#666" />
-            </TouchableOpacity>
+            <Text style={styles.yearText}>{selectedDate.getFullYear()}</Text>
           </View>
 
           <View style={styles.weekDays}>
-            {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((day, index) => (
-              <Text key={index} style={styles.weekDay}>{day}</Text>
+            {weekDays.map((day, i) => (
+              <Text key={i} style={styles.weekDay}>{day}</Text>
             ))}
           </View>
 
           <View style={styles.daysGrid}>
-            {days.map((day, index) => {
-              const isSelected = day === selectedDate.getDate() && 
-                                selectedMonth === selectedDate.getMonth() &&
-                                selectedYear === selectedDate.getFullYear();
-              
-              const dateStr = day ? 
-                new Date(selectedYear, selectedMonth, day).toISOString().split('T')[0]
-                : null;
-              const hasTask = dateStr && datesWithTasks.includes(dateStr);
-              
-              return (
-                <TouchableOpacity
-                  key={index}
+            {days.map((day, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.dayCell,
+                  day === selectedDate.getDate() && styles.selectedDay,
+                ]}
+                onPress={() => {
+                  if (day) {
+                    const newDate = new Date(selectedDate);
+                    newDate.setDate(day);
+                    setSelectedDate(newDate);
+                  }
+                }}
+                disabled={!day}
+              >
+                <Text
                   style={[
-                    styles.dayCell,
-                    isSelected && styles.selectedDay
+                    styles.dayText,
+                    !day && styles.emptyDay,
+                    day === selectedDate.getDate() && styles.selectedDayText,
                   ]}
-                  onPress={() => handleDateSelect(day)}
-                  disabled={!day}
                 >
-                  {day && (
-                    <>
-                      <Text style={[
-                        styles.dayText,
-                        isSelected && styles.selectedDayText
-                      ]}>
-                        {day}
-                      </Text>
-                      {hasTask && !isSelected && (
-                        <View style={styles.taskIndicator} />
-                      )}
-                    </>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+                  {day || ''}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
-        {/* Time Section - Afficher SEULEMENT si on a sélectionné une heure */}
-        {selectedTimeSlot && (
-          <View style={styles.timeSection}>
-            <View style={styles.timeSectionHeader}>
-              <Text style={styles.sectionLabel}>Heure sélectionnée</Text>
-              <TouchableOpacity onPress={() => setSelectedTimeSlot(null)}>
-                <Ionicons name="close-circle" size={20} color="#666" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.selectedTimeDisplay}>
-              <Ionicons name="time-outline" size={20} color="#4A90E2" />
-              <Text style={styles.selectedTimeText}>{selectedTimeSlot}</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Task Section */}
-        <View style={styles.taskSection}>
-          <View style={styles.taskSectionHeader}>
-            <Text style={styles.sectionLabel}>
-              Tâches du {selectedDate.getDate()} {monthNames[selectedMonth]}
-            </Text>
-            <Text style={styles.taskCount}>({tasks.length})</Text>
-          </View>
-          
-          {tasks.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Ionicons name="calendar-outline" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>Aucune tâche pour cette date</Text>
-              <Text style={styles.emptySubtext}>
-                Appuyez sur "Ajouter une tâche" pour commencer
-              </Text>
-            </View>
-          ) : (
-            tasks.map((task) => (
-              <TouchableOpacity 
-                key={task.id} 
+        {/* Type de tâche */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Type:</Text>
+          <View style={styles.typeButtons}>
+            {taskTypes.map((type) => (
+              <TouchableOpacity
+                key={type.value}
                 style={[
-                  styles.taskCard,
-                  selectedTimeSlot === task.time && styles.taskCardSelected
+                  styles.typeButton,
+                  taskType === type.value && styles.selectedTypeButton,
                 ]}
-                onPress={() => setSelectedTimeSlot(task.time)}
-                activeOpacity={0.7}
+                onPress={() => setTaskType(type.value)}
               >
-                <View style={styles.taskHeader}>
-                  <View style={styles.taskTimeContainer}>
-                    <Ionicons name="time-outline" size={16} color="#4A90E2" />
-                    <Text style={styles.taskTime}>{task.time}</Text>
-                  </View>
-                  <View style={styles.taskActions}>
-                    <TouchableOpacity 
-                      onPress={() => openEditModal(task)} 
-                      style={styles.taskActionButton}
-                    >
-                      <Ionicons name="create-outline" size={20} color="#666" />
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      onPress={() => confirmDelete(task.id)} 
-                      style={styles.taskActionButton}
-                    >
-                      <Ionicons name="trash-outline" size={20} color="#FF3B30" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                <Text style={styles.taskText}>{task.title}</Text>
-                {task.description && (
-                  <Text style={styles.taskDescription}>{task.description}</Text>
-                )}
+                <Text style={[
+                  styles.typeButtonText,
+                  taskType === type.value && styles.selectedTypeButtonText,
+                ]}>
+                  {type.label}
+                </Text>
               </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Sélection de l'heure */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Heure</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.timeSlots}>
+              {timeSlots.map((time) => (
+                <TouchableOpacity
+                  key={time}
+                  style={[
+                    styles.timeSlot,
+                    selectedTime === time && styles.selectedTimeSlot,
+                  ]}
+                  onPress={() => setSelectedTime(time)}
+                >
+                  <Text
+                    style={[
+                      styles.timeText,
+                      selectedTime === time && styles.selectedTimeText,
+                    ]}
+                  >
+                    {time}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+
+        {/* Titre de la tâche */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Tâche:</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Prends tes médicaments"
+            value={taskTitle}
+            onChangeText={setTaskTitle}
+            placeholderTextColor="#999"
+          />
+        </View>
+
+        {/* Description (optionnelle) */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Description (optionnelle):</Text>
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder="Ajouter des détails..."
+            value={taskDescription}
+            onChangeText={setTaskDescription}
+            placeholderTextColor="#999"
+            multiline
+            numberOfLines={3}
+          />
+        </View>
+
+        {/* Bouton Ajouter */}
+        <TouchableOpacity 
+          style={styles.addButton} 
+          onPress={addReminder}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.addButtonText}>Ajouter une tâche</Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Liste des rappels du jour */}
+        <View style={styles.remindersList}>
+          <Text style={styles.remindersTitle}>
+            Rappels du {selectedDate.toLocaleDateString('fr-FR')}:
+          </Text>
+          {loading ? (
+            <ActivityIndicator size="large" color="#6BB6B0" style={{marginTop: 20}} />
+          ) : reminders.length === 0 ? (
+            <Text style={styles.noReminders}>Aucun rappel pour cette date</Text>
+          ) : (
+            reminders.map((reminder) => (
+              <View key={reminder.id} style={[
+                styles.reminderCard,
+                reminder.completed && styles.completedCard
+              ]}>
+                <TouchableOpacity 
+                  style={styles.checkBox}
+                  onPress={() => toggleCompleted(reminder.id, reminder.completed)}
+                >
+                  <Text style={styles.checkIcon}>
+                    {reminder.completed ? '✓' : '○'}
+                  </Text>
+                </TouchableOpacity>
+                
+                <View style={styles.reminderInfo}>
+                  <View style={styles.reminderHeader}>
+                    <Text style={styles.reminderType}>
+                      {getTypeIcon(reminder.type)}
+                    </Text>
+                    <Text style={styles.reminderTime}>
+                      {reminder.time?.substring(0, 5) || '00:00'}
+                    </Text>
+                  </View>
+                  <Text style={[
+                    styles.reminderTitle,
+                    reminder.completed && styles.completedText
+                  ]}>
+                    {reminder.title}
+                  </Text>
+                  {reminder.description && reminder.description !== reminder.title && (
+                    <Text style={styles.reminderDesc}>
+                      {reminder.description}
+                    </Text>
+                  )}
+                </View>
+                
+                <View style={styles.reminderActions}>
+                  <TouchableOpacity
+                    onPress={() => setEditModal({ 
+                      visible: true, 
+                      reminder: {
+                        ...reminder,
+                        time: reminder.time?.substring(0, 5) || '09:00'
+                      }
+                    })}
+                  >
+                    <Text style={styles.editBtn}>✏️</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => deleteReminder(reminder.id)}>
+                    <Text style={styles.deleteBtn}>🗑️</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             ))
           )}
         </View>
-
-        {/* Add Task Button */}
-        <TouchableOpacity 
-          style={styles.addButton} 
-          onPress={() => openAddModal(selectedTimeSlot)}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Ionicons name="add-circle-outline" size={20} color="#fff" />
-            <Text style={styles.addButtonText}>
-              {selectedTimeSlot ? `Ajouter tâche à ${selectedTimeSlot}` : 'Ajouter une tâche'}
-            </Text>
-          </View>
-        </TouchableOpacity>
       </ScrollView>
 
       {/* Bottom Navigation */}
-      <AgendaBottomNav onBack={onBack} />
+      <View style={styles.bottomNav}>
+        <TouchableOpacity style={styles.navItem}>
+          <Text style={styles.navIcon}>🏠</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem}>
+          <Text style={styles.navIcon}>👤</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.fabButton}>
+          <Text style={styles.fabIcon}>+</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem}>
+          <Text style={styles.navIcon}>🔔</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem}>
+          <Text style={styles.navIcon}>📞</Text>
+        </TouchableOpacity>
+      </View>
 
-      {/* Modal */}
+      {/* Modal de modification */}
       <Modal
-        visible={modalVisible}
+        visible={editModal.visible}
         transparent
         animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={() => setEditModal({ visible: false, reminder: null })}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {editingTask ? "Modifier la tâche" : "Nouvelle tâche"}
-            </Text>
+            <Text style={styles.modalTitle}>Modifier la tâche</Text>
+            
+            <Text style={styles.modalLabel}>Type:</Text>
+            <View style={styles.typeButtons}>
+              {taskTypes.map((type) => (
+                <TouchableOpacity
+                  key={type.value}
+                  style={[
+                    styles.typeButton,
+                    editModal.reminder?.type === type.value && styles.selectedTypeButton,
+                  ]}
+                  onPress={() => setEditModal({
+                    ...editModal,
+                    reminder: { ...editModal.reminder, type: type.value }
+                  })}
+                >
+                  <Text style={[
+                    styles.typeButtonText,
+                    editModal.reminder?.type === type.value && styles.selectedTypeButtonText,
+                  ]}>
+                    {type.icon}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-            <Text style={styles.modalDate}>
-              {selectedDate.toLocaleDateString('fr-FR', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
-            </Text>
+            <Text style={styles.modalLabel}>Heure:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.timeSlots}>
+                {timeSlots.map((time) => (
+                  <TouchableOpacity
+                    key={time}
+                    style={[
+                      styles.timeSlot,
+                      editModal.reminder?.time === time && styles.selectedTimeSlot,
+                    ]}
+                    onPress={() => setEditModal({
+                      ...editModal,
+                      reminder: { ...editModal.reminder, time }
+                    })}
+                  >
+                    <Text style={[
+                      styles.timeText,
+                      editModal.reminder?.time === time && styles.selectedTimeText,
+                    ]}>
+                      {time}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
 
-            <Text style={styles.label}>Heure *</Text>
+            <Text style={styles.modalLabel}>Titre:</Text>
             <TextInput
-              style={styles.input}
-              value={newTaskTime}
-              onChangeText={setNewTaskTime}
-              placeholder="Ex: 09:00, 14:30"
-              placeholderTextColor="#999"
+              style={styles.modalInput}
+              value={editModal.reminder?.title}
+              onChangeText={(text) => setEditModal({
+                ...editModal,
+                reminder: { ...editModal.reminder, title: text }
+              })}
             />
 
-            <Text style={styles.label}>Tâche à faire *</Text>
+            <Text style={styles.modalLabel}>Description:</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
-              value={newTaskTitle}
-              onChangeText={setNewTaskTitle}
-              placeholder="Ex: Prendre médicaments, Rendez-vous médecin..."
-              placeholderTextColor="#999"
+              style={[styles.modalInput, styles.textArea]}
+              value={editModal.reminder?.description}
+              onChangeText={(text) => setEditModal({
+                ...editModal,
+                reminder: { ...editModal.reminder, description: text }
+              })}
               multiline
               numberOfLines={3}
             />
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setModalVisible(false)}
+                onPress={() => setEditModal({ visible: false, reminder: null })}
               >
                 <Text style={styles.cancelButtonText}>Annuler</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.modalButton, styles.saveButton]}
-                onPress={saveTask}
+                onPress={updateReminder}
               >
-                <Text style={styles.saveButtonText}>
-                  {editingTask ? "Modifier" : "Ajouter"}
-                </Text>
+                <Text style={styles.saveButtonText}>Enregistrer</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -473,101 +549,73 @@ export default function AgendaScreen({ USER_ID, onBack }) {
   );
 }
 
-// ========== NAVIGATION STYLES ==========
-const navStyles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    bottom: 0,
-    width: width,
-    height: 70,
-  },
-  background: {
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
-    height: 70,
-    backgroundColor: '#FF9B88',
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25,
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    height: 70,
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 40,
-  },
-  tabButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 10,
-  },
-});
-
-// ========== MAIN STYLES ==========
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF8F6',
+    backgroundColor: '#F5F0E8',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    padding: 20,
     paddingTop: 50,
-    paddingBottom: 20,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backText: {
+    fontSize: 24,
+    color: '#FF7B5F',
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#FF7B6D',
+    color: '#FF7B5F',
   },
-  notificationBell: {
-    position: 'relative',
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FF7B5F',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  notificationDot: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#FF3B30',
+  avatarText: {
+    fontSize: 20,
   },
   content: {
     flex: 1,
     paddingHorizontal: 20,
   },
-  calendarCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 20,
-    padding: 20,
+  calendar: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 15,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
   },
-  calendarHeader: {
+  monthNav: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    alignItems: 'center',
+    marginBottom: 15,
   },
-  calendarMonth: {
-    fontSize: 16,
+  navButton: {
+    fontSize: 24,
+    color: '#333',
+    paddingHorizontal: 10,
+  },
+  monthText: {
+    fontSize: 18,
     fontWeight: '600',
     color: '#333',
-    flex: 1,
-    marginLeft: 10,
   },
-  calendarYear: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginHorizontal: 10,
+  yearText: {
+    fontSize: 18,
+    color: '#666',
   },
   weekDays: {
     flexDirection: 'row',
@@ -575,10 +623,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   weekDay: {
-    width: 35,
+    width: 40,
     textAlign: 'center',
-    fontSize: 12,
     color: '#999',
+    fontSize: 12,
     fontWeight: '600',
   },
   daysGrid: {
@@ -590,163 +638,215 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 2,
-    position: 'relative',
-  },
-  selectedDay: {
-    backgroundColor: '#4A90E2',
-    borderRadius: 20,
   },
   dayText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#333',
+  },
+  emptyDay: {
+    color: 'transparent',
+  },
+  selectedDay: {
+    backgroundColor: '#6BB6B0',
+    borderRadius: 20,
   },
   selectedDayText: {
     color: '#fff',
     fontWeight: 'bold',
   },
-  taskIndicator: {
-    position: 'absolute',
-    bottom: 5,
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#FF3B30',
-  },
-  timeSection: {
-    marginBottom: 20,
-    backgroundColor: '#E3F2FD',
-    padding: 15,
-    borderRadius: 12,
-  },
-  timeSectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  selectedTimeDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 10,
-  },
-  selectedTimeText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#4A90E2',
-  },
-  taskSection: {
+  section: {
     marginBottom: 20,
   },
-  taskSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 8,
-  },
-  taskCount: {
-    fontSize: 14,
-    color: '#999',
-    fontWeight: '600',
-  },
-  emptyCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 15,
-    padding: 40,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-    borderStyle: 'dashed',
-  },
-  emptyText: {
+  sectionTitle: {
     fontSize: 16,
     color: '#999',
-    marginTop: 12,
-    fontWeight: '600',
-  },
-  emptySubtext: {
-    fontSize: 12,
-    color: '#ccc',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  taskCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 15,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    marginBottom: 12,
-  },
-  taskCardSelected: {
-    borderColor: '#4A90E2',
-    borderWidth: 2,
-    backgroundColor: '#F0F8FF',
-  },
-  taskHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 10,
   },
-  taskTimeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  taskTime: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4A90E2',
-  },
-  taskActions: {
+  typeButtons: {
     flexDirection: 'row',
     gap: 10,
   },
-  taskActionButton: {
-    padding: 5,
+  typeButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    alignItems: 'center',
   },
-  taskText: {
+  selectedTypeButton: {
+    backgroundColor: '#6BB6B0',
+    borderColor: '#6BB6B0',
+  },
+  typeButtonText: {
     fontSize: 14,
     color: '#333',
-    lineHeight: 20,
-    fontWeight: '500',
   },
-  taskDescription: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-    lineHeight: 18,
+  selectedTypeButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  timeSlots: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  timeSlot: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  selectedTimeSlot: {
+    backgroundColor: '#6BB6B0',
+    borderColor: '#6BB6B0',
+  },
+  timeText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  selectedTimeText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  input: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 15,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
   addButton: {
-    backgroundColor: '#A8D5E2',
-    borderRadius: 25,
-    paddingVertical: 16,
+    backgroundColor: '#6BB6B0',
+    borderRadius: 15,
+    padding: 18,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 100,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    marginBottom: 20,
   },
   addButtonText: {
     color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  remindersList: {
+    marginBottom: 100,
+  },
+  remindersTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+  },
+  noReminders: {
+    textAlign: 'center',
+    color: '#999',
+    marginTop: 20,
     fontSize: 16,
-    fontWeight: 'bold',
+  },
+  reminderCard: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  completedCard: {
+    opacity: 0.6,
+    backgroundColor: '#f0f0f0',
+  },
+  checkBox: {
+    width: 30,
+    height: 30,
+    marginRight: 10,
+  },
+  checkIcon: {
+    fontSize: 24,
+    color: '#6BB6B0',
+  },
+  reminderInfo: {
+    flex: 1,
+  },
+  reminderHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  reminderType: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  reminderTime: {
+    fontSize: 14,
+    color: '#6BB6B0',
+    fontWeight: '600',
+  },
+  reminderTitle: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
+    marginBottom: 3,
+  },
+  completedText: {
+    textDecorationLine: 'line-through',
+    color: '#999',
+  },
+  reminderDesc: {
+    fontSize: 14,
+    color: '#666',
+  },
+  reminderActions: {
+    flexDirection: 'row',
+    gap: 15,
+  },
+  editBtn: {
+    fontSize: 20,
+  },
+  deleteBtn: {
+    fontSize: 20,
+  },
+  bottomNav: {
+    flexDirection: 'row',
+    backgroundColor: '#FF7B5F',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  navItem: {
+    padding: 10,
+  },
+  navIcon: {
+    fontSize: 24,
+  },
+  fabButton: {
+    backgroundColor: '#FF7B5F',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -40,
+    borderWidth: 4,
+    borderColor: '#F5F0E8',
+  },
+  fabIcon: {
+    fontSize: 32,
+    color: '#fff',
+    fontWeight: '300',
   },
   modalOverlay: {
     flex: 1,
@@ -756,76 +856,56 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#fff',
-    width: '85%',
     borderRadius: 20,
-    padding: 25,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    padding: 20,
+    width: '85%',
+    maxHeight: '80%',
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
     color: '#333',
-  },
-  modalDate: {
-    fontSize: 13,
-    color: '#666',
-    textAlign: 'center',
     marginBottom: 20,
-    textTransform: 'capitalize',
+    textAlign: 'center',
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 10,
-    marginBottom: 8,
-    color: '#333',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 12,
-    padding: 14,
+  modalLabel: {
     fontSize: 16,
-    backgroundColor: '#F9F9F9',
-    color: '#333',
+    color: '#666',
+    marginBottom: 10,
+    marginTop: 10,
   },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
+  modalInput: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 10,
+    padding: 15,
+    fontSize: 16,
+    marginBottom: 15,
   },
   modalButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 25,
     gap: 10,
+    marginTop: 10,
   },
   modalButton: {
     flex: 1,
-    padding: 16,
-    borderRadius: 12,
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#E0E0E0',
   },
   cancelButtonText: {
-    textAlign: 'center',
     color: '#666',
-    fontWeight: '600',
     fontSize: 16,
+    fontWeight: '600',
   },
   saveButton: {
-    backgroundColor: '#A8D5E2',
+    backgroundColor: '#6BB6B0',
   },
   saveButtonText: {
-    textAlign: 'center',
     color: '#fff',
-    fontWeight: '600',
     fontSize: 16,
+    fontWeight: '600',
   },
 });
